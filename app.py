@@ -1,37 +1,32 @@
-from flask import Flask, request, send_file, jsonify
-import openai
+from flask import Flask, request, send_file
+from openai import OpenAI
 import os
-from io import BytesIO
 
 app = Flask(__name__)
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-@app.route("/")
-def index():
-    return "Servidor Breeze ativo e conectado à OpenAI!", 200
+@app.route('/')
+def home():
+    return "Servidor Breeze ativo e conectado à OpenAI!"
 
-@app.route("/healthz")
-def healthz():
-    return "ok", 200
-
-@app.route("/speak", methods=["POST"])
+@app.route('/speak', methods=['GET', 'POST'])
 def speak():
-    try:
-        data = request.get_json(force=True)
-        text = data.get("text", "Olá Murilo, aqui é a voz Breeze da OpenAI.")
-        
-        # Geração de voz Breeze
-        response = openai.audio.speech.create(
-            model="gpt-4o-mini-tts",
-            voice="breeze",
-            input=text
-        )
+    # Pega o texto da URL ou usa o padrão se nenhum for enviado
+    text = request.args.get("texto", "Olá, Murilo. A voz Breeze está funcionando perfeitamente!")
+    
+    speech_file_path = "voz_breeze.mp3"
+    
+    # Gera o áudio com a voz Breeze (pode mudar a voz depois)
+    with client.audio.speech.with_streaming_response.create(
+        model="gpt-4o-mini-tts",
+        voice="alloy",
+        input=text
+    ) as response:
+        response.stream_to_file(speech_file_path)
 
-        audio_data = BytesIO(response.read())
-        return send_file(audio_data, mimetype="audio/mpeg")
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    # Retorna o arquivo de áudio gerado
+    return send_file(speech_file_path, mimetype="audio/mpeg")
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+if __name__ == '__main__':
+    # Usa a porta do Railway automaticamente (ou 5000 localmente)
+    app.run(host='0.0.0.0', port=int(os.getenv("PORT", 5000)))
